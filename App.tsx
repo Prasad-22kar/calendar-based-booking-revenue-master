@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { HashRouter, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { User, UserRole, Booking, AuthState } from './types';
-import { getStoredUsers, getStoredBookings } from './services/storage';
+import { getStoredUsers, getStoredBookings, getRememberedCredentials } from './services/indexedDBStorage';
 import AuthView from './components/AuthView';
 import Dashboard from './components/Dashboard';
 import DateDetailsView from './components/DateDetailsView';
@@ -121,11 +121,36 @@ const App: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('current_user');
-    if (storedUser) {
-      setAuthState({ user: JSON.parse(storedUser), isAuthenticated: true });
-    }
-    setBookings(getStoredBookings());
+    const initializeApp = async () => {
+      const storedUser = localStorage.getItem('current_user');
+      if (storedUser) {
+        setAuthState({ user: JSON.parse(storedUser), isAuthenticated: true });
+      } else {
+        const remembered = getRememberedCredentials();
+        if (remembered) {
+          try {
+            const users = await getStoredUsers();
+            const user = users.find(u => u.email === remembered.email && u.password === remembered.password);
+            if (user) {
+              localStorage.setItem('current_user', JSON.stringify(user));
+              setAuthState({ user, isAuthenticated: true });
+            }
+          } catch (error) {
+            console.error('Failed to auto-login with remembered credentials:', error);
+          }
+        }
+      }
+      
+      try {
+        const allBookings = await getStoredBookings();
+        setBookings(allBookings);
+      } catch (error) {
+        console.error('Failed to load bookings:', error);
+        setBookings([]);
+      }
+    };
+
+    initializeApp();
   }, []);
 
   const handleLogin = (user: User) => {
@@ -138,8 +163,18 @@ const App: React.FC = () => {
     setAuthState({ user: null, isAuthenticated: false });
   };
 
-  const refreshBookings = () => {
-    setBookings(getStoredBookings());
+  const refreshBookings = async () => {
+    try {
+      if (authState.user?.role === UserRole.ADMIN) {
+        const allBookings = await getStoredBookings();
+        setBookings(allBookings);
+      } else {
+        const userBookings = await getStoredBookings(authState.user?.id);
+        setBookings(userBookings);
+      }
+    } catch (error) {
+      console.error('Failed to refresh bookings:', error);
+    }
   };
 
   const filteredBookings = useMemo(() => {

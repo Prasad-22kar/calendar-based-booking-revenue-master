@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Booking, User } from '../types';
-import { saveBooking, deleteBooking, updateBooking } from '../services/storage';
+import { saveBooking, deleteBooking, updateBooking } from '../services/indexedDBStorage';
 import { ArrowLeft, Plus, Trash2, Edit2, CreditCard, Clock, CheckCircle, Calendar, X, Phone, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -68,43 +68,47 @@ const DateDetailsView: React.FC<DateDetailsViewProps> = ({ bookings, currentUser
     }
   }, [editingBooking]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const total = parseFloat(totalAmount);
     const advance = parseFloat(advanceAmount);
     
     if (isNaN(total) || isNaN(advance) || !title || !clientMobile) return;
 
-    if (editingBooking) {
-      const updated: Booking = {
-        ...editingBooking,
-        title,
-        clientMobile,
-        description,
-        totalAmount: total,
-        advanceAmount: advance,
-        pendingAmount: total - advance,
-      };
-      updateBooking(updated);
-    } else {
-      const newBooking: Booking = {
-        id: Math.random().toString(36).substr(2, 9),
-        userId: currentUser.id,
-        userName: currentUser.name,
-        clientMobile,
-        title,
-        description,
-        date: date!,
-        totalAmount: total,
-        advanceAmount: advance,
-        pendingAmount: total - advance,
-        createdAt: Date.now()
-      };
-      saveBooking(newBooking);
-    }
+    try {
+      if (editingBooking) {
+        const updated: Booking = {
+          ...editingBooking,
+          title,
+          clientMobile,
+          description,
+          totalAmount: total,
+          advanceAmount: advance,
+          pendingAmount: total - advance,
+        };
+        await updateBooking(updated);
+      } else {
+        const newBooking: Booking = {
+          id: Math.random().toString(36).substr(2, 9),
+          userId: currentUser.id,
+          userName: currentUser.name,
+          clientMobile,
+          title,
+          description,
+          date: date!,
+          totalAmount: total,
+          advanceAmount: advance,
+          pendingAmount: total - advance,
+          createdAt: Date.now()
+        };
+        await saveBooking(newBooking);
+      }
 
-    onRefresh();
-    handleCloseForm();
+      onRefresh();
+      handleCloseForm();
+    } catch (error) {
+      console.error('Failed to save booking:', error);
+    }
   };
 
   const handleCloseForm = () => {
@@ -117,10 +121,14 @@ const DateDetailsView: React.FC<DateDetailsViewProps> = ({ bookings, currentUser
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this booking?')) {
-      deleteBooking(id);
-      onRefresh();
+      try {
+        await deleteBooking(id);
+        onRefresh();
+      } catch (error) {
+        console.error('Failed to delete booking:', error);
+      }
     }
   };
 

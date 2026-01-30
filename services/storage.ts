@@ -3,6 +3,7 @@ import { User, Booking, UserRole } from '../types';
 
 const USERS_KEY = 'booking_system_users';
 const BOOKINGS_KEY = 'booking_system_bookings';
+const REMEMBERED_CREDS_KEY = 'booking_system_remembered_creds';
 
 const DEFAULT_ADMIN: User = {
   id: 'admin-1',
@@ -101,5 +102,32 @@ export const updateUser = (updatedUser: User) => {
   if (index !== -1) {
     users[index] = updatedUser;
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  }
+};
+
+/**
+ * Retrieves remembered credentials from local storage.
+ */
+export const getRememberedCredentials = (): { email: string; password: string } | null => {
+  try {
+    const data = localStorage.getItem(REMEMBERED_CREDS_KEY);
+    if (!data || data === '""') return null;
+    
+    const creds = JSON.parse(data);
+    return creds.email && creds.password ? creds : null;
+  } catch (error) {
+    console.error('Failed to parse remembered credentials:', error);
+    return null;
+  }
+};
+
+/**
+ * Saves or clears remembered credentials.
+ */
+export const saveRememberedCredentials = (email: string, password: string) => {
+  if (email && password) {
+    localStorage.setItem(REMEMBERED_CREDS_KEY, JSON.stringify({ email, password }));
+  } else {
+    localStorage.removeItem(REMEMBERED_CREDS_KEY);
   }
 };

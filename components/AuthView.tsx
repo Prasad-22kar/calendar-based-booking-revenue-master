@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { getStoredUsers, saveUser } from '../services/storage';
+import { getStoredUsers, saveUser, getRememberedCredentials, saveRememberedCredentials } from '../services/indexedDBStorage';
 import { LogIn, UserPlus, Shield, User as UserIcon, Calendar, CheckCircle, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 interface AuthViewProps {
@@ -15,35 +15,55 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.USER);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const remembered = getRememberedCredentials();
+    if (remembered) {
+      setEmail(remembered.email);
+      setPassword(remembered.password);
+      setRememberMe(true);
+    }
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    const users = getStoredUsers();
+    try {
+      const users = await getStoredUsers();
 
-    if (isLogin) {
-      const user = users.find(u => u.email === email && u.password === password);
-      if (user) {
-        onLogin(user);
+      if (isLogin) {
+        const user = users.find(u => u.email === email && u.password === password);
+        if (user) {
+          if (rememberMe) {
+            saveRememberedCredentials(email, password);
+          } else {
+            saveRememberedCredentials('', '');
+          }
+          onLogin(user);
+        } else {
+          setError('Invalid email or password');
+        }
       } else {
-        setError('Invalid email or password');
+        if (users.some(u => u.email === email)) {
+          setError('Email already exists');
+          return;
+        }
+        const newUser: User = {
+          id: Math.random().toString(36).substr(2, 9),
+          email,
+          password,
+          name,
+          role
+        };
+        await saveUser(newUser);
+        onLogin(newUser);
       }
-    } else {
-      if (users.some(u => u.email === email)) {
-        setError('Email already exists');
-        return;
-      }
-      const newUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        email,
-        password,
-        name,
-        role
-      };
-      saveUser(newUser);
-      onLogin(newUser);
+    } catch (error) {
+      console.error('Authentication error:', error);
+      setError('An error occurred. Please try again.');
     }
   };
 
@@ -131,6 +151,21 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                 </button>
               </div>
             </div>
+
+            {isLogin && (
+              <div className="flex items-center gap-3 py-2">
+                <input 
+                  type="checkbox" 
+                  id="remember"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 border-2 border-slate-200 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <label htmlFor="remember" className="text-sm font-medium text-slate-600 select-none cursor-pointer hover:text-slate-800 transition-colors">
+                  Remember my credentials
+                </label>
+              </div>
+            )}
 
             {!isLogin && (
               <div className="space-y-3">
