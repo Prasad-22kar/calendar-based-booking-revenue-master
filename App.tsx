@@ -153,9 +153,22 @@ const App: React.FC = () => {
     initializeApp();
   }, []);
 
-  const handleLogin = (user: User) => {
+  const handleLogin = async (user: User) => {
     localStorage.setItem('current_user', JSON.stringify(user));
     setAuthState({ user, isAuthenticated: true });
+  
+    // Load user's bookings after login
+    try {
+      if (user.role === UserRole.ADMIN) {
+        const allBookings = await getStoredBookings();
+        setBookings(allBookings);
+      } else {
+        const userBookings = await getStoredBookings(user.id);
+        setBookings(userBookings);
+      }
+    } catch (error) {
+      console.error('Failed to load bookings after login:', error);
+    }
   };
 
   const handleLogout = () => {
