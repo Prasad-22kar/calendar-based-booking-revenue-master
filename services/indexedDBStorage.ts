@@ -67,33 +67,6 @@ const initDB = (): Promise<IDBDatabase> => {
   });
 };
 
-// Generic database operation helper
-const performDBOperation = <T>(
-  operation: (store: IDBObjectStore) => IDBRequest<T>
-): Promise<T> => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const db = await initDB();
-      const transaction = db.transaction([USERS_STORE, BOOKINGS_STORE], 'readwrite');
-      const store = operation === (s => s.getAll()) ? 
-        transaction.objectStore(USERS_STORE) : 
-        transaction.objectStore(BOOKINGS_STORE);
-      
-      const request = operation(store);
-      
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-      
-      transaction.oncomplete = () => db.close();
-      transaction.onerror = () => {
-        db.close();
-        reject(transaction.error);
-      };
-    } catch (error) {
-      reject(error);
-    }
-  });
-};
 
 // User operations
 export const getStoredUsers = async (): Promise<User[]> => {

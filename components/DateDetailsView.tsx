@@ -140,16 +140,16 @@ const DateDetailsView: React.FC<DateDetailsViewProps> = ({ bookings, currentUser
   }) : '';
 
   const getFormattedBookingText = (booking: Booking) => {
-    return `📋 *Booking Confirmation*\n\n` +
-      `📌 *Title:* ${booking.title}\n` +
-      `📅 *Date:* ${formattedDate}\n` +
-      `📱 *Mobile:* ${booking.clientMobile}\n` +
-      `📝 *Details:* ${booking.description || 'N/A'}\n\n` +
-      `💳 *Payment Summary:*\n` +
-      `• Total Amount: ₹${booking.totalAmount.toLocaleString()}\n` +
-      `• Advance Paid: ₹${booking.advanceAmount.toLocaleString()}\n` +
-      `• Pending Due: ₹${booking.pendingAmount.toLocaleString()}\n\n` +
-      `Thank you for choosing us! 🙏`;
+    return `*Booking Confirmation*\n\n` +
+      `*Title:* ${booking.title}\n` +
+      `*Date:* ${formattedDate}\n` +
+      `*Mobile:* ${booking.clientMobile}\n` +
+      `*Details:* ${booking.description || 'N/A'}\n\n` +
+      `*Payment Summary:*\n` +
+      `Total Amount: ₹${booking.totalAmount.toLocaleString()}\n` +
+      `Advance Paid: ₹${booking.advanceAmount.toLocaleString()}\n` +
+      `Pending Due: ₹${booking.pendingAmount.toLocaleString()}\n\n` +
+      `Thank you for choosing us!`;
   };
 
   const handleCopyDetails = (booking: Booking) => {

@@ -177,12 +177,6 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
                     icon={<UserIcon className="w-4 h-4" />}
                     label="User" 
                   />
-                  <RoleOption 
-                    active={role === UserRole.ADMIN} 
-                    onClick={() => setRole(UserRole.ADMIN)} 
-                    icon={<Shield className="w-4 h-4" />}
-                    label="Admin" 
-                  />
                 </div>
               </div>
             )}
@@ -206,23 +200,6 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
             </button>
           </div>
 
-          <div className="mt-8 p-5 bg-slate-50/50 rounded-3xl border border-slate-100">
-             <p className="text-[10px] text-slate-400 text-center uppercase tracking-[0.2em] font-black mb-4">Quick Demo Access</p>
-             <div className="flex flex-col gap-3">
-                <button 
-                  onClick={() => { setEmail('admin@system.com'); setPassword('password123'); setIsLogin(true); }}
-                  className="text-[11px] font-bold text-slate-500 hover:text-indigo-600 bg-white py-2 rounded-xl shadow-sm border border-slate-100 transition-all active:scale-95"
-                >
-                  Admin: admin@system.com
-                </button>
-                <button 
-                  onClick={() => { setEmail('user@example.com'); setPassword('password123'); setIsLogin(true); }}
-                  className="text-[11px] font-bold text-slate-500 hover:text-indigo-600 bg-white py-2 rounded-xl shadow-sm border border-slate-100 transition-all active:scale-95"
-                >
-                  User: user@example.com
-                </button>
-             </div>
-          </div>
         </div>
       </div>
     </div>
