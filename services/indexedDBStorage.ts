@@ -1,10 +1,12 @@
-import { User, Booking, UserRole } from '../types';
+import { User, Booking, UserRole, Note, Birthday } from '../types';
 
 // IndexedDB setup
 const DB_NAME = 'BookMasterDB';
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 const USERS_STORE = 'users';
 const BOOKINGS_STORE = 'bookings';
+const NOTES_STORE = 'notes';
+const BIRTHDAYS_STORE = 'birthdays';
 
 // Default users for initialization
 const DEFAULT_ADMIN: User = {
@@ -62,6 +64,22 @@ const initDB = (): Promise<IDBDatabase> => {
         bookingsStore.createIndex('userId', 'userId', { unique: false });
         bookingsStore.createIndex('date', 'date', { unique: false });
         bookingsStore.createIndex('userId_date', ['userId', 'date'], { unique: false });
+      }
+
+      // Create notes store with userId and date indexes
+      if (!db.objectStoreNames.contains(NOTES_STORE)) {
+        const notesStore = db.createObjectStore(NOTES_STORE, { keyPath: 'id' });
+        notesStore.createIndex('userId', 'userId', { unique: false });
+        notesStore.createIndex('date', 'date', { unique: false });
+        notesStore.createIndex('userId_date', ['userId', 'date'], { unique: false });
+      }
+
+      // Create birthdays store with userId and date indexes
+      if (!db.objectStoreNames.contains(BIRTHDAYS_STORE)) {
+        const birthdaysStore = db.createObjectStore(BIRTHDAYS_STORE, { keyPath: 'id' });
+        birthdaysStore.createIndex('userId', 'userId', { unique: false });
+        birthdaysStore.createIndex('date', 'date', { unique: false });
+        birthdaysStore.createIndex('userId_date', ['userId', 'date'], { unique: false });
       }
     };
   });
@@ -237,6 +255,216 @@ export const deleteBooking = async (id: string): Promise<void> => {
       };
     } catch (error) {
       console.error('Failed to delete booking:', error);
+      reject(error);
+    }
+  });
+};
+
+// Notes operations
+export const getNotesForDate = async (userId: string, date: string): Promise<Note[]> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction([NOTES_STORE], 'readonly');
+      const store = transaction.objectStore(NOTES_STORE);
+      const index = store.index('userId_date');
+      const request = index.getAll([userId, date]);
+      
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+      
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    } catch (error) {
+      console.error('Failed to get notes:', error);
+      reject(error);
+    }
+  });
+};
+
+export const saveNote = async (note: Note): Promise<void> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction([NOTES_STORE], 'readwrite');
+      const store = transaction.objectStore(NOTES_STORE);
+      const request = store.put(note);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    } catch (error) {
+      console.error('Failed to save note:', error);
+      reject(error);
+    }
+  });
+};
+
+export const deleteNote = async (noteId: string): Promise<void> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction([NOTES_STORE], 'readwrite');
+      const store = transaction.objectStore(NOTES_STORE);
+      const request = store.delete(noteId);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    } catch (error) {
+      console.error('Failed to delete note:', error);
+      reject(error);
+    }
+  });
+};
+
+export const getAllNotesForUser = async (userId: string): Promise<Note[]> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction([NOTES_STORE], 'readonly');
+      const store = transaction.objectStore(NOTES_STORE);
+      const index = store.index('userId');
+      const request = index.getAll(userId);
+      
+      request.onsuccess = () => {
+        const notes = request.result;
+        // Sort by date (newest first) and then by updatedAt
+        notes.sort((a, b) => {
+          if (a.date !== b.date) {
+            return new Date(b.date).getTime() - new Date(a.date).getTime();
+          }
+          return b.updatedAt - a.updatedAt;
+        });
+        resolve(notes);
+      };
+      request.onerror = () => reject(request.error);
+      
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    } catch (error) {
+      console.error('Failed to get all notes:', error);
+      reject(error);
+    }
+  });
+};
+
+// Birthday operations
+export const getBirthdaysForDate = async (userId: string, date: string): Promise<Birthday[]> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction([BIRTHDAYS_STORE], 'readonly');
+      const store = transaction.objectStore(BIRTHDAYS_STORE);
+      const index = store.index('userId_date');
+      const request = index.getAll([userId, date]);
+      
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+      
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    } catch (error) {
+      console.error('Failed to get birthdays:', error);
+      reject(error);
+    }
+  });
+};
+
+export const saveBirthday = async (birthday: Birthday): Promise<void> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction([BIRTHDAYS_STORE], 'readwrite');
+      const store = transaction.objectStore(BIRTHDAYS_STORE);
+      const request = store.put(birthday);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    } catch (error) {
+      console.error('Failed to save birthday:', error);
+      reject(error);
+    }
+  });
+};
+
+export const deleteBirthday = async (birthdayId: string): Promise<void> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction([BIRTHDAYS_STORE], 'readwrite');
+      const store = transaction.objectStore(BIRTHDAYS_STORE);
+      const request = store.delete(birthdayId);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    } catch (error) {
+      console.error('Failed to delete birthday:', error);
+      reject(error);
+    }
+  });
+};
+
+export const getAllBirthdaysForUser = async (userId: string): Promise<Birthday[]> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction([BIRTHDAYS_STORE], 'readonly');
+      const store = transaction.objectStore(BIRTHDAYS_STORE);
+      const index = store.index('userId');
+      const request = index.getAll(userId);
+      
+      request.onsuccess = () => {
+        const birthdays = request.result;
+        // Sort by date (newest first) and then by updatedAt
+        birthdays.sort((a, b) => {
+          if (a.date !== b.date) {
+            return new Date(b.date).getTime() - new Date(a.date).getTime();
+          }
+          return b.updatedAt - a.updatedAt;
+        });
+        resolve(birthdays);
+      };
+      request.onerror = () => reject(request.error);
+      
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    } catch (error) {
+      console.error('Failed to get all birthdays:', error);
       reject(error);
     }
   });

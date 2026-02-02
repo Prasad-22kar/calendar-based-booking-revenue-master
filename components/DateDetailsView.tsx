@@ -2,8 +2,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Booking, User } from '../types';
-import { saveBooking, deleteBooking, updateBooking } from '../services/indexedDBStorage';
-import { ArrowLeft, Plus, Trash2, Edit2, CreditCard, Clock, CheckCircle, Calendar, X, Phone, Copy, Check } from 'lucide-react';
+import { saveBooking, deleteBooking, updateBooking, getNotesForDate, saveNote, deleteNote, getBirthdaysForDate, saveBirthday, deleteBirthday } from '../services/indexedDBStorage';
+import { ArrowLeft, Plus, Trash2, Edit2, CreditCard, Clock, CheckCircle, Calendar, X, Phone, Copy, Check, StickyNote, Cake, Save, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Official WhatsApp Branded Icon
@@ -31,6 +31,22 @@ const DateDetailsView: React.FC<DateDetailsViewProps> = ({ bookings, currentUser
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   
+  // Notes state
+  const [showNotes, setShowNotes] = useState(false);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [newNoteContent, setNewNoteContent] = useState('');
+  const [editingNote, setEditingNote] = useState<any>(null);
+  const [notesSortOrder, setNotesSortOrder] = useState<'newest' | 'oldest'>('newest');
+  
+  // Birthdays state
+  const [showBirthdays, setShowBirthdays] = useState(false);
+  const [birthdays, setBirthdays] = useState<any[]>([]);
+  const [birthdayName, setBirthdayName] = useState('');
+  const [birthdayPhone, setBirthdayPhone] = useState('');
+  const [birthdayNotes, setBirthdayNotes] = useState('');
+  const [editingBirthday, setEditingBirthday] = useState<any>(null);
+  const [birthdaySearchTerm, setBirthdaySearchTerm] = useState('');
+  
   const [title, setTitle] = useState('');
   const [clientMobile, setClientMobile] = useState('');
   const [description, setDescription] = useState('');
@@ -43,6 +59,28 @@ const DateDetailsView: React.FC<DateDetailsViewProps> = ({ bookings, currentUser
       .sort((a, b) => a.createdAt - b.createdAt);
   }, [bookings, date]);
 
+  // Filtered and sorted birthdays
+  const filteredBirthdays = useMemo(() => {
+    return birthdays
+      .filter(birthday => 
+        birthday.name.toLowerCase().includes(birthdaySearchTerm.toLowerCase()) ||
+        (birthday.phone && birthday.phone.includes(birthdaySearchTerm)) ||
+        (birthday.notes && birthday.notes.toLowerCase().includes(birthdaySearchTerm.toLowerCase()))
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [birthdays, birthdaySearchTerm]);
+
+  // Sorted notes
+  const sortedNotes = useMemo(() => {
+    return [...notes].sort((a, b) => {
+      if (notesSortOrder === 'newest') {
+        return b.updatedAt - a.updatedAt;
+      } else {
+        return a.updatedAt - b.updatedAt;
+      }
+    });
+  }, [notes, notesSortOrder]);
+
   const totals = useMemo(() => {
     return dayBookings.reduce((acc, curr) => ({
       total: acc.total + curr.totalAmount,
@@ -50,6 +88,14 @@ const DateDetailsView: React.FC<DateDetailsViewProps> = ({ bookings, currentUser
       pending: acc.pending + curr.pendingAmount
     }), { total: 0, advance: 0, pending: 0 });
   }, [dayBookings]);
+
+  // Load notes for the current date
+  useEffect(() => {
+    if (date && currentUser) {
+      getNotesForDate(currentUser.id, date).then(setNotes).catch(console.error);
+      getBirthdaysForDate(currentUser.id, date).then(setBirthdays).catch(console.error);
+    }
+  }, [date, currentUser, showNotes, showBirthdays]);
 
   // Handle pre-filling form for editing
   useEffect(() => {
@@ -169,107 +215,344 @@ const DateDetailsView: React.FC<DateDetailsViewProps> = ({ bookings, currentUser
     window.open(whatsappUrl, '_blank');
   };
 
+  // Notes handlers
+  const handleOpenNotes = () => {
+    setShowNotes(true);
+    setEditingNote(null);
+    setNewNoteContent('');
+  };
+
+  const handleSaveNote = async () => {
+    if (!newNoteContent.trim() || !currentUser || !date) return;
+    
+    const now = Date.now();
+    const note = {
+      id: editingNote?.id || Math.random().toString(36).substr(2, 9),
+      userId: currentUser.id,
+      date,
+      content: newNoteContent.trim(),
+      createdAt: editingNote?.createdAt || now,
+      updatedAt: now
+    };
+
+    try {
+      await saveNote(note);
+      setNewNoteContent('');
+      setEditingNote(null);
+      // Reload notes
+      const updatedNotes = await getNotesForDate(currentUser.id, date);
+      setNotes(updatedNotes);
+    } catch (error) {
+      console.error('Failed to save note:', error);
+    }
+  };
+
+  const handleEditNote = (note: any) => {
+    setEditingNote(note);
+    setNewNoteContent(note.content);
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      await deleteNote(noteId);
+      // Reload notes
+      if (currentUser && date) {
+        const updatedNotes = await getNotesForDate(currentUser.id, date);
+        setNotes(updatedNotes);
+      }
+    } catch (error) {
+      console.error('Failed to delete note:', error);
+    }
+  };
+
+  // Birthday handlers
+  const handleOpenBirthdays = () => {
+    setShowBirthdays(true);
+    setEditingBirthday(null);
+    setBirthdayName('');
+    setBirthdayPhone('');
+    setBirthdayNotes('');
+    setBirthdaySearchTerm('');
+  };
+
+  const handleSaveBirthday = async () => {
+    if (!birthdayName.trim() || !currentUser || !date) return;
+    
+    const now = Date.now();
+    const birthday = {
+      id: editingBirthday?.id || Math.random().toString(36).substr(2, 9),
+      userId: currentUser.id,
+      date,
+      name: birthdayName.trim(),
+      phone: birthdayPhone.trim() || undefined,
+      notes: birthdayNotes.trim() || undefined,
+      createdAt: editingBirthday?.createdAt || now,
+      updatedAt: now
+    };
+
+    try {
+      await saveBirthday(birthday);
+      setBirthdayName('');
+      setBirthdayPhone('');
+      setBirthdayNotes('');
+      setEditingBirthday(null);
+      // Reload birthdays
+      const updatedBirthdays = await getBirthdaysForDate(currentUser.id, date);
+      setBirthdays(updatedBirthdays);
+    } catch (error) {
+      console.error('Failed to save birthday:', error);
+    }
+  };
+
+  const handleEditBirthday = (birthday: any) => {
+    setEditingBirthday(birthday);
+    setBirthdayName(birthday.name);
+    setBirthdayPhone(birthday.phone || '');
+    setBirthdayNotes(birthday.notes || '');
+  };
+
+  const handleDeleteBirthday = async (birthdayId: string) => {
+    try {
+      await deleteBirthday(birthdayId);
+      // Reload birthdays
+      if (currentUser && date) {
+        const updatedBirthdays = await getBirthdaysForDate(currentUser.id, date);
+        setBirthdays(updatedBirthdays);
+      }
+    } catch (error) {
+      console.error('Failed to delete birthday:', error);
+    }
+  };
+
   return (
-    <div className="max-w-4xl mx-auto px-1 md:px-0">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 max-w-6xl mx-auto">
+      {/* Enhanced Back Button */}
       <button 
         onClick={() => navigate('/')}
-        className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 mb-6 transition-colors font-medium text-sm md:text-base"
+        className="group flex items-center gap-3 text-slate-600 hover:text-indigo-600 mb-8 transition-all duration-300 font-medium text-sm md:text-base px-4 py-2 rounded-full hover:bg-white/50 backdrop-blur-sm border border-transparent hover:border-indigo-100 shadow-sm hover:shadow-md"
       >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Calendar
+        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-300" />
+        <span className="group-hover:font-semibold">Back to Calendar</span>
       </button>
 
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 leading-tight">{formattedDate}</h1>
-          <p className="text-sm md:text-base text-slate-500 mt-1">Daily summary and booking management</p>
-        </div>
-        <button 
-          onClick={() => { setEditingBooking(null); setShowForm(true); }}
-          className="bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 font-bold w-full md:w-auto"
-        >
-          <Plus className="w-5 h-5" />
-          New Booking
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <StatCard label="Total" amount={totals.total} icon={<CreditCard className="w-5 h-5" />} color="indigo" />
-        <StatCard label="Advance" amount={totals.advance} icon={<CheckCircle className="w-5 h-5" />} color="emerald" />
-        <StatCard label="Pending" amount={totals.pending} icon={<Clock className="w-5 h-5" />} color="amber" />
-      </div>
-
-      <div className="space-y-4 pb-12">
-        {dayBookings.length === 0 ? (
-          <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-10 text-center">
-            <div className="bg-slate-50 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Calendar className="w-6 h-6 text-slate-300" />
+      {/* Enhanced Header Section */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 p-6 md:p-8 mb-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg flex-shrink-0">
+              <Calendar className="w-6 h-6 text-white" />
             </div>
-            <h3 className="font-bold text-slate-900">No bookings scheduled</h3>
-            <p className="text-sm text-slate-500 mt-1">Tap the plus button to add your first entry.</p>
+            <div>
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-slate-900 to-indigo-600 bg-clip-text text-transparent leading-tight">
+                {formattedDate}
+              </h1>
+              <p className="text-slate-500 mt-1 flex items-center gap-2 text-sm md:text-base">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Daily overview & management
+              </p>
+            </div>
+          </div>
+          
+          {/* Enhanced Action Buttons */}
+          <div className="flex flex-wrap gap-3 lg:gap-2 xl:gap-3">
+            <button 
+              onClick={handleOpenNotes}
+              className="group relative overflow-hidden bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 md:px-6 py-2.5 md:py-3.5 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2 md:gap-2.5 font-semibold hover:scale-105 active:scale-95 text-sm md:text-base"
+            >
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+              <StickyNote className="w-4 h-4 md:w-5 md:h-5 relative z-10" />
+              <span className="relative z-10">Notes</span>
+              {notes.length > 0 && (
+                <span className="absolute -top-2 -right-2 w-5 h-5 md:w-6 md:h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-bounce">
+                  {notes.length}
+                </span>
+              )}
+            </button>
+            
+            <button 
+              onClick={handleOpenBirthdays}
+              className="group relative overflow-hidden bg-gradient-to-r from-purple-500 to-pink-600 text-white px-4 md:px-6 py-2.5 md:py-3.5 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2 md:gap-2.5 font-semibold hover:scale-105 active:scale-95 text-sm md:text-base"
+            >
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+              <Cake className="w-4 h-4 md:w-5 md:h-5 relative z-10" />
+              <span className="relative z-10">Birthdays</span>
+              {birthdays.length > 0 && (
+                <span className="absolute -top-2 -right-2 w-5 h-5 md:w-6 md:h-6 bg-pink-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-bounce">
+                  {birthdays.length}
+                </span>
+              )}
+            </button>
+            
+            <button 
+              onClick={() => { setEditingBooking(null); setShowForm(true); }}
+              className="group relative overflow-hidden bg-gradient-to-r from-indigo-500 to-blue-600 text-white px-4 md:px-6 py-2.5 md:py-3.5 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2 md:gap-2.5 font-semibold hover:scale-105 active:scale-95 text-sm md:text-base"
+            >
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+              <Plus className="w-4 h-4 md:w-5 md:h-5 relative z-10" />
+              <span className="relative z-10">New Booking</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Enhanced Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-8">
+        <div className="group relative overflow-hidden bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-2xl md:rounded-3xl p-5 md:p-6 border border-indigo-200/50 hover:shadow-xl transition-all duration-300 hover:scale-105">
+          <div className="absolute top-0 right-0 w-28 h-28 md:w-32 md:h-32 bg-indigo-200/30 rounded-full -translate-y-14 md:-translate-y-16 translate-x-14 md:translate-x-16 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-white/80 rounded-2xl shadow-md">
+                <CreditCard className="w-6 h-6 md:w-7 md:h-7 text-indigo-600" />
+              </div>
+              <span className="text-sm font-semibold text-indigo-600 uppercase tracking-wider">Total</span>
+            </div>
+            <p className="text-2xl md:text-3xl font-bold text-slate-900 mb-1">₹{totals.total.toLocaleString()}</p>
+            <p className="text-sm text-slate-600">All bookings</p>
+          </div>
+        </div>
+        
+        <div className="group relative overflow-hidden bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl md:rounded-3xl p-5 md:p-6 border border-emerald-200/50 hover:shadow-xl transition-all duration-300 hover:scale-105">
+          <div className="absolute top-0 right-0 w-28 h-28 md:w-32 md:h-32 bg-emerald-200/30 rounded-full -translate-y-14 md:-translate-y-16 translate-x-14 md:translate-x-16 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-white/80 rounded-2xl shadow-md">
+                <CheckCircle className="w-6 h-6 md:w-7 md:h-7 text-emerald-600" />
+              </div>
+              <span className="text-sm font-semibold text-emerald-600 uppercase tracking-wider">Advance</span>
+            </div>
+            <p className="text-2xl md:text-3xl font-bold text-slate-900 mb-1">₹{totals.advance.toLocaleString()}</p>
+            <p className="text-sm text-slate-600">Received payments</p>
+          </div>
+        </div>
+        
+        <div className="group relative overflow-hidden bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl md:rounded-3xl p-5 md:p-6 border border-amber-200/50 hover:shadow-xl transition-all duration-300 hover:scale-105">
+          <div className="absolute top-0 right-0 w-28 h-28 md:w-32 md:h-32 bg-amber-200/30 rounded-full -translate-y-14 md:-translate-y-16 translate-x-14 md:translate-x-16 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-white/80 rounded-2xl shadow-md">
+                <Clock className="w-6 h-6 md:w-7 md:h-7 text-amber-600" />
+              </div>
+              <span className="text-sm font-semibold text-amber-600 uppercase tracking-wider">Pending</span>
+            </div>
+            <p className="text-2xl md:text-3xl font-bold text-slate-900 mb-1">₹{totals.pending.toLocaleString()}</p>
+            <p className="text-sm text-slate-600">Awaiting payment</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Enhanced Bookings Section */}
+      <div className="space-y-6 pb-12">
+        {dayBookings.length === 0 ? (
+          <div className="bg-gradient-to-br from-slate-50 to-white border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center backdrop-blur-sm">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-full blur-2xl opacity-50"></div>
+              <div className="relative bg-white w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-lg border border-slate-100">
+                <Calendar className="w-8 h-8 text-slate-400" />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">No bookings scheduled</h3>
+            <p className="text-slate-500 mb-4">Start your day by adding a new booking entry</p>
+            <button 
+              onClick={() => { setEditingBooking(null); setShowForm(true); }}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-2xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-105"
+            >
+              <Plus className="w-4 h-4" />
+              Add First Booking
+            </button>
           </div>
         ) : (
           dayBookings.map((booking, index) => (
             <motion.div 
               key={booking.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 shadow-sm relative group"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1, type: "spring", stiffness: 100 }}
+              className="group relative"
             >
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex-1 min-w-0 pr-4">
-                  <h3 className="text-lg md:text-xl font-bold text-slate-900 truncate">{booking.title}</h3>
-                  <div className="flex items-center gap-2 text-indigo-600 text-sm font-semibold mt-1">
-                    <Phone className="w-3 h-3" />
-                    {booking.clientMobile}
+              <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden">
+                {/* Gradient Border Effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                
+                <div className="relative p-4 md:p-6 lg:p-8">
+                  <div className="flex flex-col gap-4">
+                    {/* Header with Title and Actions */}
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <h3 className="text-lg md:text-xl lg:text-2xl font-bold bg-gradient-to-r from-slate-900 to-indigo-600 bg-clip-text text-transparent">
+                          {booking.title}
+                        </h3>
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-full">
+                            <Phone className="w-4 h-4 text-indigo-600" />
+                            <span className="font-medium text-indigo-700 text-sm md:text-base">{booking.clientMobile}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Action Buttons */}
+                      <div className="flex gap-1.5 p-1 bg-white/50 backdrop-blur-sm rounded-xl border border-white/20">
+                        <button 
+                          onClick={() => handleShareWhatsApp(booking)}
+                          className="group/btn p-3.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all duration-200 hover:scale-110"
+                          title="Share via WhatsApp"
+                        >
+                          <WhatsAppIcon className="w-6 h-6 group-hover/btn:scale-110 transition-transform" />
+                        </button>
+                        <button 
+                          onClick={() => handleCopyDetails(booking)}
+                          className={`group/btn p-3.5 rounded-xl transition-all duration-200 hover:scale-110 ${
+                            copiedId === booking.id 
+                              ? 'text-emerald-600 bg-emerald-50' 
+                              : 'text-indigo-600 hover:bg-indigo-50'
+                          }`}
+                          title="Copy Details"
+                        >
+                          {copiedId === booking.id ? (
+                            <Check className="w-6 h-6 group-hover/btn:scale-110 transition-transform" />
+                          ) : (
+                            <Copy className="w-6 h-6 group-hover/btn:scale-110 transition-transform" />
+                          )}
+                        </button>
+                        <button 
+                          onClick={() => handleEditClick(booking)}
+                          className="group/btn p-3.5 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-200 hover:scale-110"
+                          title="Edit Booking"
+                        >
+                          <Edit2 className="w-6 h-6 group-hover/btn:scale-110 transition-transform" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(booking.id)}
+                          className="group/btn p-3.5 text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 hover:scale-110"
+                          title="Delete Booking"
+                        >
+                          <Trash2 className="w-6 h-6 group-hover/btn:scale-110 transition-transform" />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Description */}
+                    {booking.description && (
+                      <div className="p-3 md:p-4 bg-gradient-to-br from-slate-50 to-indigo-50/30 rounded-xl md:rounded-2xl border border-slate-100">
+                        <p className="text-slate-700 leading-relaxed text-sm md:text-base">{booking.description}</p>
+                      </div>
+                    )}
+                    
+                    {/* Payment Details */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 md:p-4 rounded-xl md:rounded-2xl border border-blue-100">
+                        <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-1">Total</p>
+                        <p className="text-xl md:text-xl font-bold text-slate-900">₹{booking.totalAmount.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-4 md:p-4 rounded-xl md:rounded-2xl border border-emerald-100">
+                        <p className="text-sm font-semibold text-emerald-600 uppercase tracking-wider mb-1">Advance</p>
+                        <p className="text-xl md:text-xl font-bold text-slate-900">₹{booking.advanceAmount.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 md:p-4 rounded-xl md:rounded-2xl border border-amber-100">
+                        <p className="text-sm font-semibold text-amber-600 uppercase tracking-wider mb-1">Pending</p>
+                        <p className="text-xl md:text-xl font-bold text-slate-900">₹{booking.pendingAmount.toLocaleString()}</p>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-slate-500 text-sm mt-2 line-clamp-2">{booking.description || 'No description'}</p>
-                </div>
-                <div className="flex items-center gap-1 md:gap-2">
-                  <button 
-                    onClick={() => handleShareWhatsApp(booking)}
-                    className="p-2 text-slate-300 hover:text-emerald-500 transition-colors md:opacity-0 md:group-hover:opacity-100"
-                    title="Share via WhatsApp"
-                  >
-                    <WhatsAppIcon className="w-5 h-5" />
-                  </button>
-                  <button 
-                    onClick={() => handleCopyDetails(booking)}
-                    className={`p-2 transition-all md:opacity-0 md:group-hover:opacity-100 ${copiedId === booking.id ? 'text-emerald-500' : 'text-slate-300 hover:text-indigo-600'}`}
-                    title="Copy Details"
-                  >
-                    {copiedId === booking.id ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                  </button>
-                  <button 
-                    onClick={() => handleEditClick(booking)}
-                    className="p-2 text-slate-300 hover:text-indigo-600 transition-colors md:opacity-0 md:group-hover:opacity-100"
-                    title="Edit Booking"
-                  >
-                    <Edit2 className="w-5 h-5" />
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(booking.id)}
-                    className="p-2 text-slate-300 hover:text-red-500 transition-colors md:opacity-0 md:group-hover:opacity-100"
-                    title="Delete Booking"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-50">
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Total</p>
-                  <p className="text-base md:text-lg font-bold text-slate-900">₹{booking.totalAmount.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Paid</p>
-                  <p className="text-base md:text-lg font-bold text-emerald-600">₹{booking.advanceAmount.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Due</p>
-                  <p className="text-base md:text-lg font-bold text-amber-600">₹{booking.pendingAmount.toLocaleString()}</p>
                 </div>
               </div>
             </motion.div>
@@ -277,94 +560,143 @@ const DateDetailsView: React.FC<DateDetailsViewProps> = ({ bookings, currentUser
         )}
       </div>
 
+      {/* Enhanced Booking Form */}
       <AnimatePresence>
         {showForm && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-4">
             <motion.div 
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
+              initial={{ y: "100%", opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="bg-white rounded-t-3xl md:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+              className="bg-gradient-to-br from-white to-indigo-50/30 rounded-t-3xl md:rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto border border-white/20"
             >
-              <div className="sticky top-0 z-10 px-6 py-5 border-b border-slate-100 bg-white/80 backdrop-blur-md flex justify-between items-center">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">{editingBooking ? 'Edit Booking' : 'New Booking'}</h2>
-                  <p className="text-slate-500 text-xs">{formattedDate}</p>
+              {/* Enhanced Header */}
+              <div className="sticky top-0 z-10 px-8 py-6 border-b border-slate-100/50 bg-white/80 backdrop-blur-md flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
+                    <Plus className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-indigo-600 bg-clip-text text-transparent">
+                      {editingBooking ? 'Edit Booking' : 'New Booking'}
+                    </h2>
+                    <p className="text-slate-500 text-sm flex items-center gap-2 mt-1">
+                      <Calendar className="w-4 h-4" />
+                      {formattedDate}
+                    </p>
+                  </div>
                 </div>
-                <button onClick={handleCloseForm} className="p-2 text-slate-400 hover:text-slate-600 transition-colors">
+                <button 
+                  onClick={handleCloseForm} 
+                  className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all duration-200 hover:scale-110"
+                >
                   <X className="w-6 h-6" />
                 </button>
               </div>
               
-              <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                <div>
-                  <label className="block text-xs font-black uppercase text-slate-500 tracking-widest mb-2">Booking Title</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Event or Customer Name"
-                    className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-black uppercase text-slate-500 tracking-widest mb-2">Client Mobile Number</label>
-                  <input 
-                    type="tel" 
-                    required
-                    value={clientMobile}
-                    onChange={(e) => setClientMobile(e.target.value)}
-                    placeholder="Mandatory mobile number"
-                    className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-black uppercase text-slate-500 tracking-widest mb-2">Description</label>
-                  <textarea 
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all h-24 text-sm resize-none"
-                    placeholder="Additional details..."
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-black uppercase text-slate-500 tracking-widest mb-2">Total Amount (₹)</label>
+              <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                <div className="space-y-2">
+                  <label className="block text-xs font-black uppercase text-indigo-600 tracking-widest mb-3 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
+                    Booking Title
+                  </label>
+                  <div className="relative">
                     <input 
-                      type="number" 
+                      type="text" 
                       required
-                      value={totalAmount}
-                      onChange={(e) => setTotalAmount(e.target.value)}
-                      className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-bold"
-                      placeholder="0"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Event or Customer Name"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm font-semibold bg-white/50 backdrop-blur-sm"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-black uppercase text-slate-500 tracking-widest mb-2">Advance Paid (₹)</label>
-                    <input 
-                      type="number" 
-                      required
-                      value={advanceAmount}
-                      onChange={(e) => setAdvanceAmount(e.target.value)}
-                      className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm font-bold"
-                      placeholder="0"
-                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-2xl pointer-events-none"></div>
                   </div>
                 </div>
 
-                <div className="pt-4 flex gap-3">
+                <div className="space-y-2">
+                  <label className="block text-xs font-black uppercase text-indigo-600 tracking-widest mb-3 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
+                    Client Mobile Number
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type="tel" 
+                      required
+                      value={clientMobile}
+                      onChange={(e) => setClientMobile(e.target.value)}
+                      placeholder="Mandatory mobile number"
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm font-semibold bg-white/50 backdrop-blur-sm"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-2xl pointer-events-none"></div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-black uppercase text-indigo-600 tracking-widest mb-3 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
+                    Description
+                  </label>
+                  <div className="relative">
+                    <textarea 
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Add details about this booking..."
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all h-28 text-sm font-semibold resize-none bg-white/50 backdrop-blur-sm"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-2xl pointer-events-none"></div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-black uppercase text-indigo-600 tracking-widest mb-3 flex items-center gap-2">
+                      <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
+                      Total Amount
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="number" 
+                        required
+                        value={totalAmount}
+                        onChange={(e) => setTotalAmount(e.target.value)}
+                        placeholder="0"
+                        className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm font-bold bg-gradient-to-br from-blue-50 to-indigo-50"
+                      />
+                      <span className="absolute right-5 top-1/2 -translate-y-1/2 text-indigo-600 font-bold">₹</span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-xs font-black uppercase text-indigo-600 tracking-widest mb-3 flex items-center gap-2">
+                      <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
+                      Advance Amount
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="number" 
+                        required
+                        value={advanceAmount}
+                        onChange={(e) => setAdvanceAmount(e.target.value)}
+                        placeholder="0"
+                        className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm font-bold bg-gradient-to-br from-emerald-50 to-green-50"
+                      />
+                      <span className="absolute right-5 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">₹</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-6 flex gap-4">
                   <button 
                     type="button"
                     onClick={handleCloseForm}
-                    className="flex-1 px-6 py-4 border border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 transition-all text-sm"
+                    className="flex-1 px-6 py-4 border-2 border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 transition-all duration-300 hover:scale-105 active:scale-95"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit"
-                    className="flex-1 px-6 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all text-sm"
+                    className="flex-1 px-6 py-4 bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-2xl font-bold shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95"
                   >
                     {editingBooking ? 'Update Booking' : 'Save Booking'}
                   </button>
@@ -372,6 +704,350 @@ const DateDetailsView: React.FC<DateDetailsViewProps> = ({ bookings, currentUser
               </form>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Notes Sidebar */}
+      <AnimatePresence>
+        {showNotes && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex"
+            onClick={() => setShowNotes(false)}
+          >
+            <motion.div
+              initial={{ x: 300 }}
+              animate={{ x: 0 }}
+              exit={{ x: 300 }}
+              transition={{ type: "spring", damping: 25 }}
+              className="ml-auto w-full max-w-md bg-white h-full overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-slate-100 bg-white">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-100 rounded-xl">
+                      <StickyNote className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-900">Notes</h2>
+                      <p className="text-sm text-slate-500">{formattedDate}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowNotes(false)}
+                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {/* Sort Controls */}
+                <div className="flex items-center justify-between border-t border-emerald-100 pt-4">
+                  <span className="text-sm text-slate-600 font-medium">{sortedNotes.length} note{sortedNotes.length !== 1 ? 's' : ''}</span>
+                  <button
+                    onClick={() => setNotesSortOrder(notesSortOrder === 'newest' ? 'oldest' : 'newest')}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors shadow-md"
+                  >
+                    {notesSortOrder === 'newest' ? (
+                      <>
+                        <Calendar className="w-4 h-4" />
+                        Newest First
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="w-4 h-4 rotate-180" />
+                        Oldest First
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Notes List */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {sortedNotes.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-500 font-medium">No notes yet</p>
+                    <p className="text-slate-400 text-sm mt-1">Add your first note for this date</p>
+                  </div>
+                ) : (
+                  sortedNotes.map((note) => (
+                    <motion.div
+                      key={note.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-slate-50 rounded-2xl border border-slate-100"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="text-xs text-slate-400">
+                          {new Date(note.updatedAt).toLocaleString()}
+                        </p>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleEditNote(note)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteNote(note.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-slate-700 whitespace-pre-wrap">{note.content}</p>
+                    </motion.div>
+                  ))
+                )}
+              </div>
+
+              {/* Add/Edit Note */}
+              <div className="p-6 border-t border-slate-100 bg-white">
+                <div className="space-y-3">
+                  <textarea
+                    value={newNoteContent}
+                    onChange={(e) => setNewNoteContent(e.target.value)}
+                    placeholder="Add a new note..."
+                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all resize-none text-sm font-medium"
+                    rows={3}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setNewNoteContent('');
+                        setEditingNote(null);
+                      }}
+                      className="flex-1 px-4 py-3 border border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 transition-all text-sm"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={handleSaveNote}
+                      disabled={!newNoteContent.trim()}
+                      className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-2xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {editingNote ? 'Update Note' : 'Save Note'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Birthdays Sidebar */}
+      <AnimatePresence>
+        {showBirthdays && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex"
+            onClick={() => setShowBirthdays(false)}
+          >
+            <motion.div
+              initial={{ x: 300 }}
+              animate={{ x: 0 }}
+              exit={{ x: 300 }}
+              transition={{ type: "spring", damping: 25 }}
+              className="ml-auto w-full max-w-md bg-white h-full overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-slate-100 bg-white">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-xl">
+                      <Cake className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-900">Birthdays</h2>
+                      <p className="text-sm text-slate-500">{formattedDate}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowBirthdays(false)}
+                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {/* Search Bar */}
+                <div className="space-y-3 border-t border-purple-100 pt-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={birthdaySearchTerm}
+                      onChange={(e) => setBirthdaySearchTerm(e.target.value)}
+                      placeholder="🔍 Search birthdays..."
+                      className="w-full px-4 py-3 pl-12 bg-purple-100 border-2 border-purple-300 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm font-medium shadow-sm"
+                    />
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-600">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    {birthdaySearchTerm && (
+                      <button
+                        onClick={() => setBirthdaySearchTerm('')}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-purple-600 hover:text-purple-800 transition-colors bg-purple-200 rounded-full p-1"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Search Results Counter */}
+                  <div className="flex items-center justify-between bg-purple-50 px-3 py-2 rounded-lg">
+                    <span className="text-sm text-purple-700 font-medium">
+                      {birthdaySearchTerm ? (
+                        <>🔍 Found {filteredBirthdays.length} of {birthdays.length} birthdays</>
+                      ) : (
+                        <>📋 {birthdays.length} birthday{birthdays.length !== 1 ? 's' : ''}</>
+                      )}
+                    </span>
+                    {birthdays.length > 1 && !birthdaySearchTerm && (
+                      <span className="text-xs text-purple-600 font-medium bg-purple-200 px-2 py-1 rounded-full">
+                        🔤 Sorted A-Z
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Birthdays List */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {filteredBirthdays.length === 0 ? (
+                  <div className="text-center py-12">
+                    {birthdaySearchTerm ? (
+                      <>
+                        <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-4">
+                          <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                        </div>
+                        <p className="text-slate-500 font-medium">No birthdays found</p>
+                        <p className="text-slate-400 text-sm mt-1">Try searching with different terms</p>
+                      </>
+                    ) : (
+                      <>
+                        <Cake className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                        <p className="text-slate-500 font-medium">No birthdays yet</p>
+                        <p className="text-slate-400 text-sm mt-1">Add your first birthday for this date</p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  filteredBirthdays.map((birthday) => (
+                    <motion.div
+                      key={birthday.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-slate-50 rounded-2xl border border-slate-100"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                            <span className="text-xs font-bold text-purple-600">
+                              {birthday.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-slate-900">{birthday.name}</h4>
+                            <p className="text-xs text-slate-400">
+                              {new Date(birthday.updatedAt).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleEditBirthday(birthday)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBirthday(birthday.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      {birthday.phone && (
+                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-2">
+                          <Phone className="w-4 h-4" />
+                          <span>{birthday.phone}</span>
+                        </div>
+                      )}
+                      {birthday.notes && (
+                        <div className="flex items-start gap-2 text-sm text-slate-600">
+                          <FileText className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          <p className="whitespace-pre-wrap">{birthday.notes}</p>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))
+                )}
+              </div>
+
+              {/* Add/Edit Birthday */}
+              <div className="p-6 border-t border-slate-100 bg-white">
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={birthdayName}
+                    onChange={(e) => setBirthdayName(e.target.value)}
+                    placeholder="Name *"
+                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all text-sm font-medium"
+                  />
+                  <input
+                    type="tel"
+                    value={birthdayPhone}
+                    onChange={(e) => setBirthdayPhone(e.target.value)}
+                    placeholder="Phone (optional)"
+                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all text-sm font-medium"
+                  />
+                  <textarea
+                    value={birthdayNotes}
+                    onChange={(e) => setBirthdayNotes(e.target.value)}
+                    placeholder="Notes (optional)"
+                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all resize-none text-sm font-medium"
+                    rows={2}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setBirthdayName('');
+                        setBirthdayPhone('');
+                        setBirthdayNotes('');
+                        setEditingBirthday(null);
+                      }}
+                      className="flex-1 px-4 py-3 border border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 transition-all text-sm"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={handleSaveBirthday}
+                      disabled={!birthdayName.trim()}
+                      className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-2xl font-bold shadow-lg shadow-purple-100 hover:bg-purple-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {editingBirthday ? 'Update Birthday' : 'Save Birthday'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

@@ -7,7 +7,9 @@ import AuthView from './components/AuthView';
 import Dashboard from './components/Dashboard';
 import DateDetailsView from './components/DateDetailsView';
 import AnalyticsView from './components/AnalyticsView';
-import { LogOut, Calendar, PieChart, User as UserIcon, Settings, Menu, X } from 'lucide-react';
+import AllNotesView from './components/AllNotesView';
+import AllBirthdaysView from './components/AllBirthdaysView';
+import { LogOut, Calendar, PieChart, User as UserIcon, Settings, Menu, X, StickyNote, Cake } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -29,6 +31,8 @@ const MainLayout: React.FC<{
   refreshBookings: () => void; 
 }> = ({ authState, handleLogout, filteredBookings, refreshBookings }) => {
   const location = useLocation();
+  const [showAllNotes, setShowAllNotes] = useState(false);
+  const [showAllBirthdays, setShowAllBirthdays] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row pb-20 md:pb-0">
@@ -44,6 +48,20 @@ const MainLayout: React.FC<{
         <div className="flex-1 p-4 space-y-2">
           <NavLink to="/" icon={<Calendar className="w-5 h-5" />} label="Calendar" />
           <NavLink to="/analytics" icon={<PieChart className="w-5 h-5" />} label="Revenue" />
+          <button
+            onClick={() => setShowAllNotes(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-emerald-50 text-slate-600 hover:text-emerald-600"
+          >
+            <StickyNote className="w-5 h-5" />
+            All Notes
+          </button>
+          <button
+            onClick={() => setShowAllBirthdays(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-all hover:bg-purple-50 text-slate-600 hover:text-purple-600"
+          >
+            <Cake className="w-5 h-5" />
+            All Birthdays
+          </button>
           {authState.user?.role === UserRole.ADMIN && (
             <NavLink to="/settings" icon={<Settings className="w-5 h-5" />} label="Admin" />
           )}
@@ -73,12 +91,32 @@ const MainLayout: React.FC<{
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 flex justify-around items-center px-4 py-3 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)]">
         <MobileNavLink to="/" icon={<Calendar className="w-6 h-6" />} label="Calendar" />
         <MobileNavLink to="/analytics" icon={<PieChart className="w-6 h-6" />} label="Revenue" />
+        <button 
+          onClick={() => setShowAllNotes(true)}
+          className="flex flex-col items-center gap-1 p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+        >
+          <div className="p-1.5 rounded-lg bg-transparent hover:bg-emerald-50 transition-colors">
+            <StickyNote className="w-6 h-6" />
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider">Notes</span>
+        </button>
+        <button 
+          onClick={() => setShowAllBirthdays(true)}
+          className="flex flex-col items-center gap-1 p-2 text-slate-400 hover:text-purple-600 transition-colors"
+        >
+          <div className="p-1.5 rounded-lg bg-transparent hover:bg-purple-50 transition-colors">
+            <Cake className="w-6 h-6" />
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider">Birthdays</span>
+        </button>
         {authState.user?.role === UserRole.ADMIN && (
           <MobileNavLink to="/settings" icon={<Settings className="w-6 h-6" />} label="Admin" />
         )}
-        <button onClick={handleLogout} className="flex flex-col items-center gap-1 text-slate-400 p-2">
-          <LogOut className="w-6 h-6" />
-          <span className="text-[10px] font-medium">Exit</span>
+        <button onClick={handleLogout} className="flex flex-col items-center gap-1 p-2 text-slate-400 hover:text-red-600 transition-colors">
+          <div className="p-1.5 rounded-lg bg-transparent hover:bg-red-50 transition-colors">
+            <LogOut className="w-6 h-6" />
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider">Exit</span>
         </button>
       </nav>
 
@@ -96,7 +134,7 @@ const MainLayout: React.FC<{
       {/* Main Content Area */}
       <main className="flex-1 md:ml-64 p-4 md:p-8">
         <AnimatePresence mode="wait">
-          <Routes location={location} key={location.pathname}>
+          <Routes location={location}>
             <Route path="/" element={<PageWrapper><Dashboard bookings={filteredBookings} onRefresh={refreshBookings} /></PageWrapper>} />
             <Route path="/date/:date" element={<PageWrapper><DateDetailsView bookings={filteredBookings} currentUser={authState.user!} onRefresh={refreshBookings} /></PageWrapper>} />
             <Route path="/analytics" element={<PageWrapper><AnalyticsView bookings={filteredBookings} userRole={authState.user?.role || UserRole.USER} /></PageWrapper>} />
@@ -109,6 +147,20 @@ const MainLayout: React.FC<{
           </Routes>
         </AnimatePresence>
       </main>
+
+      {/* All Notes Sidebar */}
+      <AllNotesView 
+        currentUser={authState.user!}
+        isOpen={showAllNotes}
+        onClose={() => setShowAllNotes(false)}
+      />
+
+      {/* All Birthdays Sidebar */}
+      <AllBirthdaysView 
+        currentUser={authState.user!}
+        isOpen={showAllBirthdays}
+        onClose={() => setShowAllBirthdays(false)}
+      />
     </div>
   );
 };

@@ -37,3 +37,23 @@ export interface RevenueStats {
   totalPending: number;
   count: number;
 }
+
+export interface Note {
+  id: string;
+  userId: string;
+  date: string; // ISO format: YYYY-MM-DD
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Birthday {
+  id: string;
+  userId: string;
+  date: string; // ISO format: YYYY-MM-DD
+  name: string;
+  phone?: string;
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
