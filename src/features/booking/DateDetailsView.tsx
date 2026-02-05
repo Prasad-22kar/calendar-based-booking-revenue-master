@@ -1,8 +1,7 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Booking, User } from '../types';
-import { saveBooking, deleteBooking, updateBooking, getNotesForDate, saveNote, deleteNote, getBirthdaysForDate, saveBirthday, deleteBirthday } from '../services/indexedDBStorage';
+import { Booking, User } from '../../shared/types';
+import { saveBooking, deleteBooking, updateBooking, getNotesForDate, saveNote, deleteNote, getBirthdaysForDate, saveBirthday, deleteBirthday } from '../../shared/services/indexedDBStorage';
 import { ArrowLeft, Plus, Trash2, Edit2, CreditCard, Clock, CheckCircle, Calendar, X, Phone, Copy, Check, StickyNote, Cake, Save, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 

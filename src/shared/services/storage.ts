@@ -1,4 +1,3 @@
-
 import { User, Booking, UserRole } from '../types';
 
 const USERS_KEY = 'booking_system_users';

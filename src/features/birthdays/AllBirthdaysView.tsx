@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, Birthday } from '../types';
-import { getAllBirthdaysForUser, saveBirthday, deleteBirthday } from '../services/indexedDBStorage';
+import { User, Birthday } from '../../shared/types';
+import { getAllBirthdaysForUser, saveBirthday, deleteBirthday } from '../../shared/services/indexedDBStorage';
 import { Cake, Edit2, Trash2, X, Calendar, Phone, FileText, Plus, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 

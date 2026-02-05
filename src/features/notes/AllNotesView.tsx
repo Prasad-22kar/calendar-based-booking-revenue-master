@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, Note } from '../types';
-import { getAllNotesForUser, saveNote, deleteNote } from '../services/indexedDBStorage';
+import { User, Note } from '../../shared/types';
+import { getAllNotesForUser, saveNote, deleteNote } from '../../shared/services/indexedDBStorage';
 import { StickyNote, Edit2, Trash2, X, Calendar, FileText, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 

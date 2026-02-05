@@ -1,6 +1,5 @@
-
 import React, { useMemo } from 'react';
-import { Booking, UserRole } from '../types';
+import { Booking, UserRole } from '../../shared/types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area, Legend, Cell, PieChart, Pie

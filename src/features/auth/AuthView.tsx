@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { User, UserRole } from '../types';
-import { getStoredUsers, saveUser, getRememberedCredentials, saveRememberedCredentials } from '../services/indexedDBStorage';
+import { User, UserRole } from '../../shared/types';
+import { getStoredUsers, saveUser, getRememberedCredentials, saveRememberedCredentials } from '../../shared/services/indexedDBStorage';
 import { LogIn, UserPlus, Shield, User as UserIcon, Calendar, CheckCircle, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 interface AuthViewProps {

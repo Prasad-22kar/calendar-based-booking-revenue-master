@@ -1,14 +1,13 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { HashRouter, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
-import { User, UserRole, Booking, AuthState } from './types';
-import { getStoredUsers, getStoredBookings, getRememberedCredentials } from './services/indexedDBStorage';
-import AuthView from './components/AuthView';
-import Dashboard from './components/Dashboard';
-import DateDetailsView from './components/DateDetailsView';
-import AnalyticsView from './components/AnalyticsView';
-import AllNotesView from './components/AllNotesView';
-import AllBirthdaysView from './components/AllBirthdaysView';
+import { User, UserRole, Booking, AuthState } from '../shared/types';
+import { getStoredUsers, getStoredBookings, getRememberedCredentials } from '../shared/services/indexedDBStorage';
+import AuthView from '../features/auth/AuthView';
+import Dashboard from '../features/booking/Dashboard';
+import DateDetailsView from '../features/booking/DateDetailsView';
+import AnalyticsView from '../features/analytics/AnalyticsView';
+import AllNotesView from '../features/notes/AllNotesView';
+import AllBirthdaysView from '../features/birthdays/AllBirthdaysView';
 import { LogOut, Calendar, PieChart, User as UserIcon, Settings, Menu, X, StickyNote, Cake } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
